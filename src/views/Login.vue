@@ -1,7 +1,7 @@
 <script setup>
 import { loginWithGoogle } from "@/services/authService";
 import { useRouter } from "vue-router";
-import IconGoogle from '@/assets/IconGoogle.vue'
+import IconGoogle from '@/components/icons/IconGoogle.vue'
 
 const router = useRouter();
 
