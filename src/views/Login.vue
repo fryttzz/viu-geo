@@ -17,7 +17,8 @@ const handleSignIn = async () => {
 <template>
     <div id="login-page">
         <div class="login-container">
-            <h1 class="login-title">GeoJSON Visualizador</h1>
+            <h1 class="login-title">ViuGeo</h1>
+            <p>Ferramenta para visualização de arquivos GeoJSON</p>
             <button class="google-btn" @click="handleSignIn">
                 <IconGoogle />
                 Entrar com uma conta Google
@@ -64,6 +65,7 @@ const handleSignIn = async () => {
     width: 100%;
     cursor: pointer;
     transition: background-color 0.3s;
+    margin-top: 16px;
 }
 
 .google-btn:hover {

@@ -2,8 +2,9 @@
 import { logout, useAuth } from "@/services/authService";
 import { useRouter } from "vue-router";
 import { onMounted, ref } from "vue";
+import { loadUserMaps, saveMap } from "../services/mapsService";
 import L from 'leaflet';
-import { collection, getDocs, query, where } from "firebase/firestore";
+import "leaflet/dist/leaflet.css"
 
 const router = useRouter();
 const { user } = useAuth()
@@ -14,11 +15,9 @@ const map = ref(null),
     savedMaps = ref([]),
     geoJSONLayer = ref(null)
 
-// Inicializa o mapa Leaflet
 const initMap = () => {
-    map.value = L.map('map').setView([0, 0], 2);
+    map.value = L.map('map').setView([-16, -49], 4);
 
-    // Adiciona o mapa base OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map.value);
@@ -49,7 +48,6 @@ const displayGeoJSON = (geojsonData) => {
     if (geoJSONLayer) {
         map.value.removeLayer(geoJSONLayer);
     }
-
     // Adiciona a nova camada GeoJSON
     geoJSONLayer.value = L.geoJSON(geojsonData, {
         style: {
@@ -67,18 +65,18 @@ const displayGeoJSON = (geojsonData) => {
                 fillOpacity: 0.8
             });
         }
-    }).addTo(map);
+    }).addTo(map.value);
 
     // Ajusta a visualização para caber nos dados GeoJSON
     try {
-        map.fitBounds(geoJSONLayer.value.getBounds());
+        map.value.fitBounds(geoJSONLayer.value.getBounds());
     } catch (e) {
         console.warn("Não foi possível ajustar os limites do mapa:", e);
     }
 }
 
 // Salva o mapa no Firestore
-const saveMap = async () => {
+const handleSaveMap = async () => {
     if (!currentGeoJSON) {
         alert("Carregue um arquivo GeoJSON antes de salvar.");
         return;
@@ -90,16 +88,10 @@ const saveMap = async () => {
     }
 
     try {
-        await addDoc(collection(db, "userMaps"), {
-            userId: user.uid,
-            name: mapName.value,
-            geojson: JSON.stringify(currentGeoJSON),
-            createdAt: new Date()
-        });
-
+        await saveMap(mapName, currentGeoJSON);
         alert("Mapa salvo com sucesso!");
         mapName.value = '';
-        loadUserMaps();
+        handleLoadUserMaps();
     } catch (error) {
         console.error("Erro ao salvar o mapa:", error);
         alert("Falha ao salvar o mapa.");
@@ -107,37 +99,32 @@ const saveMap = async () => {
 }
 
 // Carrega os mapas do usuário
-const loadUserMaps = async () => {
+const handleLoadUserMaps = async () => {
     if (!user) return;
 
     try {
-        const q = query(
-            collection(db, "maps"),
-            where("userId", "==", user.uid)
-        );
-
-        const querySnapshot = await getDocs(q);
         savedMaps.value = [];
-
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            savedMaps.value.push({
-                id: doc.id,
-                name: data.name,
-                geojson: JSON.parse(data.geojson)
-            });
-        });
+        savedMaps.value = await loadUserMaps()
     } catch (error) {
         console.error("Erro ao carregar mapas:", error);
-        alert("Falha ao carregar seus mapas.");
     }
 }
 
 // Carrega um mapa salvo
 const loadSavedMap = (map) => {
+    console.log(map);
     currentGeoJSON.value = map.geojson;
     displayGeoJSON(map.geojson);
     mapName.value = map.name;
+}
+
+const handleClearMaps = () => {
+    currentGeoJSON.value = null
+    mapName.value = ''
+    if (geoJSONLayer) {
+        map.value.removeLayer(geoJSONLayer);
+    }
+    geoJSONLayer.value = null
 }
 
 const handleLogout = async () => {
@@ -152,11 +139,11 @@ const handleLogout = async () => {
 
 onMounted(() => {
     initMap();
-    // loadUserMaps();
-    // // Carrega o mapa salvo, se houver
-    // if (savedMaps.value.length > 0) {
-    //     loadSavedMap(savedMaps.value[0]);
-    // }
+    handleLoadUserMaps();
+    // Carrega o mapa salvo, se houver
+    if (savedMaps.value.length > 0) {
+        loadSavedMap(savedMaps.value[0]);
+    }
 })
 
 </script>
@@ -176,7 +163,10 @@ onMounted(() => {
                     <h3 class="section-title">Carregar GeoJSON</h3>
                     <input type="file" class="file-input" accept=".geojson,.json" @change="handleFileUpload">
                     <input v-model="mapName" type="text" class="map-name-input" placeholder="Nome do mapa">
-                    <button class="save-btn" @click="saveMap">Salvar Mapa</button>
+                    <div class="map-row-btns">
+                        <button class="save-btn" @click="handleSaveMap">Salvar Mapa</button>
+                        <button class="clear-btn" @click="handleClearMaps">Limpar</button>
+                    </div>
                 </div>
                 <div class="saved-maps-section">
                     <h3 class="section-title">Meus Mapas</h3>
@@ -193,12 +183,9 @@ onMounted(() => {
 </template>
 
 <style>
-/* Tela Home / Mapa */
 #home-page {
-    display: none;
     height: 100vh;
     width: 100%;
-    flex-direction: column;
 }
 
 .header {
@@ -237,22 +224,12 @@ onMounted(() => {
     color: #4a4a4a;
 }
 
-.map-container {
-    display: flex;
-    flex: 1;
-    height: calc(100vh - 60px);
-}
-
 .sidebar {
     width: 300px;
     background-color: white;
     padding: 1rem;
     border-right: 1px solid #e0e0e0;
     overflow-y: auto;
-}
-
-.map-controls {
-    margin-bottom: 1.5rem;
 }
 
 .section-title {
@@ -271,6 +248,16 @@ onMounted(() => {
     list-style: none;
 }
 
+.map-container {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 60px);
+}
+
+.map-controls {
+    margin-bottom: 1.5rem;
+}
+
 .map-item {
     padding: 0.5rem;
     border-bottom: 1px solid #eee;
@@ -282,9 +269,24 @@ onMounted(() => {
     background-color: #f5f5f5;
 }
 
+.map-name-input {
+    width: 100%;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
 #map {
     flex: 1;
     height: 100%;
+}
+
+.map-row-btns {
+    display: flex;
+    justify-content: space-between;
+    flex-direction: row;
+    margin-top: 0.5rem;
 }
 
 .save-btn {
@@ -293,7 +295,15 @@ onMounted(() => {
     border: none;
     border-radius: 4px;
     padding: 0.5rem 1rem;
-    margin-top: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.clear-btn {
+    color: #4caf50;
+    border: 2px solid #4caf50;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
     cursor: pointer;
     transition: background-color 0.3s;
 }
@@ -302,12 +312,8 @@ onMounted(() => {
     background-color: #3e8e41;
 }
 
-.map-name-input {
-    width: 100%;
-    padding: 0.5rem;
-    margin-top: 0.5rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+.clear-btn:hover {
+    border-color: #3e8e41;
 }
 
 @media (max-width: 768px) {
