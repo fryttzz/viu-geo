@@ -3,11 +3,13 @@ import { logout, useAuth } from "@/services/authService";
 import { useRouter } from "vue-router";
 import { onMounted, ref } from "vue";
 import { loadUserMaps, saveMap } from "../services/mapsService";
+import { useNotification } from '@/stores/notificationStore';
 import L from 'leaflet';
 import "leaflet/dist/leaflet.css"
 
 const router = useRouter();
 const { user } = useAuth()
+const { setNotification } = useNotification()
 
 const map = ref(null),
     currentGeoJSON = ref(null),
@@ -23,7 +25,6 @@ const initMap = () => {
     }).addTo(map.value);
 }
 
-// Manipula o upload de arquivo GeoJSON
 const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -42,13 +43,10 @@ const handleFileUpload = (event) => {
     reader.readAsText(file);
 }
 
-// Exibe o GeoJSON no mapa
 const displayGeoJSON = (geojsonData) => {
-    // Remove a camada GeoJSON existente, se houver
     if (geoJSONLayer) {
         map.value.removeLayer(geoJSONLayer);
     }
-    // Adiciona a nova camada GeoJSON
     geoJSONLayer.value = L.geoJSON(geojsonData, {
         style: {
             color: '#3388ff',
@@ -62,12 +60,11 @@ const displayGeoJSON = (geojsonData) => {
                 color: '#fff',
                 weight: 1,
                 opacity: 1,
-                fillOpacity: 0.8
+                fillOpacity: 1
             });
         }
     }).addTo(map.value);
 
-    // Ajusta a visualização para caber nos dados GeoJSON
     try {
         map.value.fitBounds(geoJSONLayer.value.getBounds());
     } catch (e) {
@@ -75,7 +72,6 @@ const displayGeoJSON = (geojsonData) => {
     }
 }
 
-// Salva o mapa no Firestore
 const handleSaveMap = async () => {
     if (!currentGeoJSON) {
         alert("Carregue um arquivo GeoJSON antes de salvar.");
@@ -98,10 +94,8 @@ const handleSaveMap = async () => {
     }
 }
 
-// Carrega os mapas do usuário
 const handleLoadUserMaps = async () => {
     if (!user) return;
-
     try {
         savedMaps.value = [];
         savedMaps.value = await loadUserMaps()
@@ -110,9 +104,7 @@ const handleLoadUserMaps = async () => {
     }
 }
 
-// Carrega um mapa salvo
 const loadSavedMap = (map) => {
-    console.log(map);
     currentGeoJSON.value = map.geojson;
     displayGeoJSON(map.geojson);
     mapName.value = map.name;
@@ -122,7 +114,7 @@ const handleClearMaps = () => {
     currentGeoJSON.value = null
     mapName.value = ''
     if (geoJSONLayer) {
-        map.value.removeLayer(geoJSONLayer);
+        map.value.removeLayer(geoJSONLayer.value);
     }
     geoJSONLayer.value = null
 }
@@ -131,7 +123,7 @@ const handleLogout = async () => {
     try {
         await logout();
         router.push({ name: "Login" })
-        // setNotification("success", "Você foi desconectado com sucesso")
+        setNotification("success", "Você foi desconectado com sucesso")
     } catch (error) {
         console.error("Erro ao desconectar sua conta Google:", error.message);
     }
@@ -140,7 +132,6 @@ const handleLogout = async () => {
 onMounted(() => {
     initMap();
     handleLoadUserMaps();
-    // Carrega o mapa salvo, se houver
     if (savedMaps.value.length > 0) {
         loadSavedMap(savedMaps.value[0]);
     }
@@ -164,7 +155,7 @@ onMounted(() => {
                     <input type="file" class="file-input" accept=".geojson,.json" @change="handleFileUpload">
                     <input v-model="mapName" type="text" class="map-name-input" placeholder="Nome do mapa">
                     <div class="map-row-btns">
-                        <button class="save-btn" @click="handleSaveMap">Salvar Mapa</button>
+                        <button class="save-btn" @click="handleSaveMap">Salvar</button>
                         <button class="clear-btn" @click="handleClearMaps">Limpar</button>
                     </div>
                 </div>
@@ -301,6 +292,7 @@ onMounted(() => {
 
 .clear-btn {
     color: #4caf50;
+    background: transparent;
     border: 2px solid #4caf50;
     border-radius: 4px;
     padding: 0.5rem 1rem;
@@ -314,6 +306,7 @@ onMounted(() => {
 
 .clear-btn:hover {
     border-color: #3e8e41;
+    color: #3e8e41;
 }
 
 @media (max-width: 768px) {

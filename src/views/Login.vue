@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import IconGoogle from '@/assets/IconGoogle.vue'
 
 const router = useRouter();
+
 const handleSignIn = async () => {
     await loginWithGoogle()
         .then(() => {
