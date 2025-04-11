@@ -2,7 +2,7 @@
 import { logout, useAuth } from "@/services/authService";
 import { useRouter } from "vue-router";
 import { onMounted, ref } from "vue";
-import { loadUserMaps, saveMap } from "../services/mapsService";
+import { loadUserMaps, saveMap, getMapFeatures } from "../services/mapsService";
 import { useNotification } from '@/stores/notificationStore';
 import L from 'leaflet';
 import "leaflet/dist/leaflet.css"
@@ -32,7 +32,7 @@ const handleFileUpload = (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const geojsonData = JSON.parse(e.target.result);
+            const geojsonData = JSON.parse(e.target.result);            
             displayGeoJSON(geojsonData);
             currentGeoJSON.value = geojsonData;
         } catch (error) {
@@ -104,10 +104,15 @@ const handleLoadUserMaps = async () => {
     }
 }
 
-const loadSavedMap = (map) => {
-    currentGeoJSON.value = map.geojson;
-    displayGeoJSON(map.geojson);
-    mapName.value = map.name;
+const loadSavedMap = async (map) => {
+    const completyMap = await handleLoadMapFeatures(map)
+    currentGeoJSON.value = completyMap;
+    displayGeoJSON(completyMap);
+    mapName.value = completyMap.name;
+}
+
+const handleLoadMapFeatures = async (map) => {
+    return await getMapFeatures(map)
 }
 
 const handleClearMaps = () => {
