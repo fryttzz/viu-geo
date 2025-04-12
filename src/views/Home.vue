@@ -44,8 +44,8 @@ const handleFileUpload = (event) => {
 }
 
 const displayGeoJSON = (geojsonData) => {
-    if (geoJSONLayer) {
-        map.value.removeLayer(geoJSONLayer);
+    if (geoJSONLayer.value != null) {
+        map.value.removeLayer(geoJSONLayer.value);
     }
     geoJSONLayer.value = L.geoJSON(geojsonData, {
         style: {
