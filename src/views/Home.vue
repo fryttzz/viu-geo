@@ -15,7 +15,8 @@ const map = ref(null),
     currentGeoJSON = ref(null),
     mapName = ref(''),
     savedMaps = ref([]),
-    geoJSONLayer = ref(null)
+    geoJSONLayer = ref(null),
+    displayedMaps = ref([])
 
 const initMap = () => {
     map.value = L.map('map').setView([-16, -49], 4);
@@ -32,7 +33,7 @@ const handleFileUpload = (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const geojsonData = JSON.parse(e.target.result);            
+            const geojsonData = JSON.parse(e.target.result);
             displayGeoJSON(geojsonData);
             currentGeoJSON.value = geojsonData;
         } catch (error) {
@@ -43,7 +44,53 @@ const handleFileUpload = (event) => {
     reader.readAsText(file);
 }
 
-const displayGeoJSON = (geojsonData) => {
+const displayMaps = () => {
+    handleClearMaps()
+
+    if (!displayedMaps.value || displayedMaps.value.length <= 0) {
+        return;
+    }
+
+    if (!map.value) {
+        console.warn("Referência do mapa (map.value) não está definida.");
+    }
+
+    geoJSONLayer.value = L.geoJSON(displayedMaps.value, {
+        style: {
+            color: '#3388ff',
+            weight: 3,
+            opacity: 0.7
+        },
+        pointToLayer: (feature, latlng) => {
+            return L.circleMarker(latlng, {
+                radius: 8,
+                fillColor: '#3388ff',
+                color: '#fff',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 1
+            });
+        }
+    }).bindPopup(function (layer) {
+        return layer.feature?.properties?.Name || "Sem nome";
+    }).addTo(map.value);
+
+    try {
+        if (geoJSONLayer.value && typeof geoJSONLayer.value.getBounds === 'function') {
+            const bounds = geoJSONLayer.value.getBounds();
+            if (bounds.isValid()) {
+                map.value.fitBounds(bounds);
+            } else {
+                console.warn("Bounds da camada GeoJSON inválidos.");
+            }
+        }
+    } catch (e) {
+        console.warn("Não foi possível ajustar os limites do mapa:", e);
+    }
+};
+
+
+const displayGeoJSON = (geojsonData, index) => {
     if (geoJSONLayer) {
         map.value.removeLayer(geoJSONLayer);
     }
@@ -63,6 +110,8 @@ const displayGeoJSON = (geojsonData) => {
                 fillOpacity: 1
             });
         }
+    }).bindPopup(function (layer) {
+        return layer.feature.properties.Name ? layer.feature.properties.Name : "Sem nome"
     }).addTo(map.value);
 
     try {
@@ -87,6 +136,9 @@ const handleSaveMap = async () => {
         await saveMap(mapName, currentGeoJSON);
         alert("Mapa salvo com sucesso!");
         mapName.value = '';
+        if (geoJSONLayer) {
+            map.value.removeLayer(geoJSONLayer.value);
+        }
         handleLoadUserMaps();
     } catch (error) {
         console.error("Erro ao salvar o mapa:", error);
@@ -104,11 +156,16 @@ const handleLoadUserMaps = async () => {
     }
 }
 
-const loadSavedMap = async (map) => {
-    const completyMap = await handleLoadMapFeatures(map)
-    currentGeoJSON.value = completyMap;
-    displayGeoJSON(completyMap);
-    mapName.value = completyMap.name;
+const loadSavedMap = async (newMap) => {
+    const completyMap = await handleLoadMapFeatures(newMap)
+    if (displayedMaps.value.find(element => element.id === completyMap.id)) {
+        const found = displayedMaps.value.find(element => element.id === completyMap.id)
+        displayedMaps.value = displayedMaps.value.filter(map => map !== found)
+        displayMaps();
+    } else {
+        displayedMaps.value.push(completyMap)
+        displayMaps();
+    }
 }
 
 const handleLoadMapFeatures = async (map) => {
@@ -118,10 +175,12 @@ const handleLoadMapFeatures = async (map) => {
 const handleClearMaps = () => {
     currentGeoJSON.value = null
     mapName.value = ''
-    if (geoJSONLayer) {
-        map.value.removeLayer(geoJSONLayer.value);
+    if (geoJSONLayer.value) {
+        if (map.value) {
+            map.value.removeLayer(geoJSONLayer.value);
+        }
+        geoJSONLayer.value = null;
     }
-    geoJSONLayer.value = null
 }
 
 const handleLogout = async () => {
@@ -167,8 +226,10 @@ onMounted(() => {
                 <div class="saved-maps-section">
                     <h3 class="section-title">Meus Mapas</h3>
                     <ul class="saved-maps">
-                        <li v-for="(map, index) in savedMaps" :key="index" class="map-item" @click="loadSavedMap(map)">
-                            {{ map.name }}
+                        <li v-for="(map, index) in savedMaps" :key="index" class="map-item">
+                            <p>{{ map.name }}</p>
+                            <input type="checkbox" name="select-map" :id="`select-map-${map.id}`"
+                                @change="loadSavedMap(map, index)">
                         </li>
                     </ul>
                 </div>
@@ -255,14 +316,19 @@ onMounted(() => {
 }
 
 .map-item {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
     padding: 0.5rem;
     border-bottom: 1px solid #eee;
-    cursor: pointer;
     transition: background-color 0.2s;
 }
 
-.map-item:hover {
-    background-color: #f5f5f5;
+.map-item input {
+    height: 15px;
+    width: 15px;
+    cursor: pointer;
 }
 
 .map-name-input {
