@@ -55,12 +55,18 @@ const displayMaps = () => {
     if (!displayedMaps.value || displayedMaps.value.length <= 0) {
         return;
     }
+    setGeoJsonLayer()
+};
 
-    if (!map.value) {
-        console.warn("Referência do mapa (map.value) não está definida.");
+const displayGeoJSON = (geojsonData, index) => {
+    if (geoJSONLayer) {
+        map.value.removeLayer(geoJSONLayer);
     }
+    setGeoJsonLayer(geojsonData)
+}
 
-    geoJSONLayer.value = L.geoJSON(displayedMaps.value, {
+const setGeoJsonLayer = (geojsonData) => {
+    geoJSONLayer.value = L.geoJSON(geojsonData ? geojsonData : displayedMaps.value, {
         style: {
             color: '#3388ff',
             weight: 3,
@@ -89,38 +95,6 @@ const displayMaps = () => {
                 console.warn("Bounds da camada GeoJSON inválidos.");
             }
         }
-    } catch (e) {
-        console.warn("Não foi possível ajustar os limites do mapa:", e);
-    }
-};
-
-
-const displayGeoJSON = (geojsonData, index) => {
-    if (geoJSONLayer) {
-        map.value.removeLayer(geoJSONLayer);
-    }
-    geoJSONLayer.value = L.geoJSON(geojsonData, {
-        style: {
-            color: '#3388ff',
-            weight: 3,
-            opacity: 0.7
-        },
-        pointToLayer: (feature, latlng) => {
-            return L.circleMarker(latlng, {
-                radius: 8,
-                fillColor: '#3388ff',
-                color: '#fff',
-                weight: 1,
-                opacity: 1,
-                fillOpacity: 1
-            });
-        }
-    }).bindPopup(function (layer) {
-        return layer.feature.properties.Name ? layer.feature.properties.Name : "Sem nome"
-    }).addTo(map.value);
-
-    try {
-        map.value.fitBounds(geoJSONLayer.value.getBounds());
     } catch (e) {
         console.warn("Não foi possível ajustar os limites do mapa:", e);
     }
