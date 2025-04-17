@@ -58,7 +58,7 @@ const displayMaps = () => {
     setGeoJsonLayer()
 };
 
-const displayGeoJSON = (geojsonData, index) => {
+const displayGeoJSON = (geojsonData) => {
     if (geoJSONLayer) {
         map.value.removeLayer(geoJSONLayer);
     }
@@ -70,7 +70,7 @@ const setGeoJsonLayer = (geojsonData) => {
         style: {
             color: '#3388ff',
             weight: 3,
-            opacity: 0.7
+            opacity: 1
         },
         pointToLayer: (feature, latlng) => {
             return L.circleMarker(latlng, {
@@ -156,7 +156,7 @@ const handleLoadUserProjetcs = async () => {
 }
 
 const loadSavedMap = async (newMap) => {
-    const completyMap = await handleLoadMapFeatures(newMap)
+    const completyMap = await getMapFeatures(newMap)
     if (displayedMaps.value.find(element => element.id === completyMap.id)) {
         const found = displayedMaps.value.find(element => element.id === completyMap.id)
         displayedMaps.value = displayedMaps.value.filter(map => map !== found)
@@ -167,16 +167,8 @@ const loadSavedMap = async (newMap) => {
     }
 }
 
-const handleLoadMapFeatures = async (map) => {
-    return await getMapFeatures(map)
-}
-
 const handleNewProject = () => {
-    if (newProject.value === false) {
-        newProject.value = true
-    } else {
-        newProject.value = false
-    }
+    newProject.value === false ? newProject.value = true : newProject.value = false
 }
 
 const handleSaveNewProject = async (e) => {
