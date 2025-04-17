@@ -2,8 +2,10 @@
 import { logout, useAuth } from "@/services/authService";
 import { useRouter } from "vue-router";
 import { onMounted, ref } from "vue";
-import { loadUserMaps, saveMap, getMapFeatures } from "../services/mapsService";
+import { loadUserMaps, saveMap, getMapFeatures, saveProject, loadUserProjects } from "../services/mapsService";
 import { useNotification } from '@/stores/notificationStore';
+import IconAdd from "@/components/icons/IconAdd.vue"
+import IconArrow from "@/components/icons/IconArrow.vue"
 import L from 'leaflet';
 import "leaflet/dist/leaflet.css"
 
@@ -14,9 +16,12 @@ const { setNotification } = useNotification()
 const map = ref(null),
     currentGeoJSON = ref(null),
     mapName = ref(''),
-    savedMaps = ref([]),
+    projectName = ref(''),
+    currentProject = ref({}),
+    savedProjects = ref([]),
     geoJSONLayer = ref(null),
-    displayedMaps = ref([])
+    displayedMaps = ref([]),
+    newProject = ref(false)
 
 const initMap = () => {
     map.value = L.map('map').setView([-16, -49], 4);
@@ -132,27 +137,47 @@ const handleSaveMap = async () => {
         return;
     }
 
+    if (currentProject.value === {}) {
+        alert("Selecione um projeto para o mapa.");
+        return;
+    }
+
     try {
-        await saveMap(mapName, currentGeoJSON);
+        await saveMap(mapName, currentProject.value.projectId, currentGeoJSON);
         alert("Mapa salvo com sucesso!");
         mapName.value = '';
         if (geoJSONLayer) {
             map.value.removeLayer(geoJSONLayer.value);
         }
-        handleLoadUserMaps();
+        handleLoadUserMaps(currentProject.value.projectId, currentProject.value.index);
+        currentProject.value = {}
     } catch (error) {
         console.error("Erro ao salvar o mapa:", error);
         alert("Falha ao salvar o mapa.");
     }
 }
 
-const handleLoadUserMaps = async () => {
+const handleLoadUserMaps = async (projectId, index) => {
     if (!user) return;
     try {
-        savedMaps.value = [];
-        savedMaps.value = await loadUserMaps()
+        if (savedProjects.value[index].maps) {
+            delete savedProjects.value[index].maps
+            displayMaps()
+        } else {
+            savedProjects.value[index].maps = await loadUserMaps(projectId)
+        }
     } catch (error) {
         console.error("Erro ao carregar mapas:", error);
+    }
+}
+
+const handleLoadUserProjetcs = async () => {
+    if (!user) return;
+    try {
+        savedProjects.value = [];
+        savedProjects.value = await loadUserProjects()
+    } catch (error) {
+        console.error("Erro ao carregar os projetos:", error);
     }
 }
 
@@ -170,6 +195,24 @@ const loadSavedMap = async (newMap) => {
 
 const handleLoadMapFeatures = async (map) => {
     return await getMapFeatures(map)
+}
+
+const handleNewProject = () => {
+    if (newProject.value === false) {
+        newProject.value = true
+    } else {
+        newProject.value = false
+    }
+}
+
+const handleSaveNewProject = async (e) => {
+    if (e.key === 'Enter') {
+        await saveProject(projectName.value)
+        handleNewProject()
+        handleLoadUserProjetcs()
+    } else if (e.key === "Escape") {
+        handleNewProject()
+    }
 }
 
 const handleClearMaps = () => {
@@ -195,10 +238,7 @@ const handleLogout = async () => {
 
 onMounted(() => {
     initMap();
-    handleLoadUserMaps();
-    if (savedMaps.value.length > 0) {
-        loadSavedMap(savedMaps.value[0]);
-    }
+    handleLoadUserProjetcs();
 })
 
 </script>
@@ -208,7 +248,7 @@ onMounted(() => {
         <header class="header">
             <div class="user-info">
                 <img :src="user.photoURL" alt="Avatar" class="user-avatar">
-                <span>{{ user.displayName }}</span>
+                <span>Olá, {{ user.displayName }}</span>
             </div>
             <button class="logout-btn" @click="handleLogout">Sair</button>
         </header>
@@ -218,18 +258,38 @@ onMounted(() => {
                     <h3 class="section-title">Carregar GeoJSON</h3>
                     <input type="file" class="file-input" accept=".geojson,.json" @change="handleFileUpload">
                     <input v-model="mapName" type="text" class="map-name-input" placeholder="Nome do mapa">
+                    <select v-model="currentProject" class="map-name-input" name="" :disabled="mapName == ''">
+                        <option value="">Selecione uma pasta</option>
+                        <option v-for="(project, index) in savedProjects" :key="index"
+                            :value="{ projectId: project.id, index }"> {{
+                                project.name }} </option>
+                    </select>
                     <div class="map-row-btns">
                         <button class="save-btn" @click="handleSaveMap">Salvar</button>
                         <button class="clear-btn" @click="handleClearMaps">Limpar</button>
                     </div>
                 </div>
-                <div class="saved-maps-section">
-                    <h3 class="section-title">Meus Mapas</h3>
-                    <ul class="saved-maps">
-                        <li v-for="(map, index) in savedMaps" :key="index" class="map-item">
-                            <p>{{ map.name }}</p>
-                            <input type="checkbox" name="select-map" :id="`select-map-${map.id}`"
-                                @change="loadSavedMap(map, index)">
+                <div class="saved-projects-section">
+                    <div class="saved-projects-title">
+                        <h3 class="section-title">Meus Projetos</h3>
+                        <IconAdd @click="handleNewProject" />
+                    </div>
+                    <input v-if="newProject" v-model="projectName" type="text" class="project-name-input"
+                        placeholder="Novo Projeto" @keydown="handleSaveNewProject">
+                    <ul class="saved-projects">
+                        <li class="project-item-list" v-for="(project, index) in savedProjects" :key="index">
+                            <div class="project-item">
+                                <p>{{ project.name }}</p>
+                                <IconArrow :class="project.maps ? 'transform-svg' : ''"
+                                    @click="handleLoadUserMaps(project.id, index)" />
+                            </div>
+                            <ul class="saved-maps">
+                                <li v-for="(map, index) in project.maps" :key="index" class="map-item">
+                                    <p>{{ map.name }}</p>
+                                    <input type="checkbox" name="select-map" :id="`select-map-${map.id}`"
+                                        @change="loadSavedMap(map, index)">
+                                </li>
+                            </ul>
                         </li>
                     </ul>
                 </div>
@@ -289,6 +349,66 @@ onMounted(() => {
     overflow-y: auto;
 }
 
+.saved-projects-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+}
+
+.saved-projects-title h3 {
+    margin: 0;
+}
+
+.saved-projects-title svg {
+    height: 25px;
+    width: 25px;
+    cursor: pointer;
+    stroke: red;
+}
+
+.saved-projects-title svg:hover {
+    height: 25px;
+    width: 25px;
+    cursor: pointer;
+    border: 2px solid #4caf50;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.project-name-input {
+    width: 100%;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    border-radius: 4px;
+    border: none;
+}
+
+.project-item-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.project-item {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding: 0.5rem 0 0.5rem 0;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.project-item p {
+    font-size: 14px;
+}
+
+.transform-svg {
+    transform: rotate(180deg);
+}
+
 .section-title {
     font-size: 14px;
     font-weight: 600;
@@ -302,6 +422,10 @@ onMounted(() => {
 }
 
 .saved-maps {
+    list-style: none;
+}
+
+.saved-projects {
     list-style: none;
 }
 
@@ -323,6 +447,10 @@ onMounted(() => {
     padding: 0.5rem;
     border-bottom: 1px solid #eee;
     transition: background-color 0.2s;
+}
+
+.map-item p {
+    font-size: 14px;
 }
 
 .map-item input {
