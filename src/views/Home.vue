@@ -50,7 +50,7 @@ const handleFileUpload = (event) => {
 }
 
 const displayMaps = () => {
-    handleClearMaps()
+    handleClearMap()
 
     if (!displayedMaps.value || displayedMaps.value.length <= 0) {
         return;
@@ -215,9 +215,15 @@ const handleSaveNewProject = async (e) => {
     }
 }
 
-const handleClearMaps = () => {
+const handleClearMap = (all) => {
     currentGeoJSON.value = null
     mapName.value = ''
+    if (all) {
+        displayedMaps.value = []
+        savedProjects.value.forEach(project => {
+            delete project.maps
+        })
+    }
     if (geoJSONLayer.value) {
         if (map.value) {
             map.value.removeLayer(geoJSONLayer.value);
@@ -258,7 +264,7 @@ onMounted(() => {
                     <h3 class="section-title">Carregar GeoJSON</h3>
                     <input type="file" class="file-input" accept=".geojson,.json" @change="handleFileUpload">
                     <input v-model="mapName" type="text" class="map-name-input" placeholder="Nome do mapa">
-                    <select v-model="currentProject" class="map-name-input" name="" :disabled="mapName == ''">
+                    <select v-model="currentProject" class="map-name-input" :disabled="mapName == ''">
                         <option value="">Selecione uma pasta</option>
                         <option v-for="(project, index) in savedProjects" :key="index"
                             :value="{ projectId: project.id, index }"> {{
@@ -266,7 +272,7 @@ onMounted(() => {
                     </select>
                     <div class="map-row-btns">
                         <button class="save-btn" @click="handleSaveMap">Salvar</button>
-                        <button class="clear-btn" @click="handleClearMaps">Limpar</button>
+                        <button class="clear-btn" @click="handleClearMap(true)">Limpar</button>
                     </div>
                 </div>
                 <div class="saved-projects-section">
@@ -277,17 +283,17 @@ onMounted(() => {
                     <input v-if="newProject" v-model="projectName" type="text" class="project-name-input"
                         placeholder="Novo Projeto" @keydown="handleSaveNewProject">
                     <ul class="saved-projects">
-                        <li class="project-item-list" v-for="(project, index) in savedProjects" :key="index">
+                        <li class="project-item-list" v-for="(project, i) in savedProjects" :key="i">
                             <div class="project-item">
                                 <p>{{ project.name }}</p>
                                 <IconArrow :class="project.maps ? 'transform-svg' : ''"
-                                    @click="handleLoadUserMaps(project.id, index)" />
+                                    @click="handleLoadUserMaps(project.id, i)" />
                             </div>
                             <ul class="saved-maps">
-                                <li v-for="(map, index) in project.maps" :key="index" class="map-item">
+                                <li v-for="(map, j) in project.maps" :key="j" class="map-item">
                                     <p>{{ map.name }}</p>
                                     <input type="checkbox" name="select-map" :id="`select-map-${map.id}`"
-                                        @change="loadSavedMap(map, index)">
+                                        @change="loadSavedMap(map)">
                                 </li>
                             </ul>
                         </li>
