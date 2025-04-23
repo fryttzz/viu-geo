@@ -404,7 +404,7 @@ onMounted(() => {
 .map-container {
     display: flex;
     flex: 1;
-    height: calc(100vh - 60px);
+    height: calc(100vh - 68px);
 }
 
 .map-controls {
